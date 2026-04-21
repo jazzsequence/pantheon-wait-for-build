@@ -37,9 +37,13 @@ else
   env_name="dev"
 fi
 
-# For PRs, use the branch head SHA — github.sha is GitHub's synthetic merge commit,
-# which Pantheon never sees. The PR head is what Pantheon actually checks out and builds.
-if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
+# Commit SHA: explicit override takes priority (used when the relevant commit is in a
+# different repo, e.g. integration test workflows). Otherwise derive from GitHub context.
+# For PRs, use the branch head — github.sha is GitHub's synthetic merge commit, which
+# Pantheon never sees.
+if [[ -n "${INPUT_COMMIT_SHA:-}" ]]; then
+  commit_sha="${INPUT_COMMIT_SHA}"
+elif [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
   commit_sha="${GITHUB_PR_HEAD_SHA}"
 else
   commit_sha="${GITHUB_SHA}"

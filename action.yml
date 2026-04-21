@@ -25,6 +25,10 @@ inputs:
     description: 'Clear Pantheon GCDN cache after a successful deployment'
     required: false
     default: 'true'
+  commit-sha:
+    description: 'Git commit SHA to wait for. Auto-detected from GitHub context if omitted. Override when the relevant commit is in a different repository (e.g. integration test workflows).'
+    required: false
+    default: ''
 
 outputs:
   deployment-ready:
@@ -44,6 +48,7 @@ runs:
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
         GITHUB_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        INPUT_COMMIT_SHA: ${{ inputs.commit-sha }}
       run: ${{ github.action_path }}/scripts/authenticate.sh
 
     - name: Wait for build and deployment

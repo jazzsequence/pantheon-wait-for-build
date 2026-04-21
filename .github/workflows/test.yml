@@ -1,0 +1,37 @@
+name: Integration Test
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test action against devrel-wait-for-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create test PR on devrel-wait-for-build
+        id: trigger
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: ./scripts/create-test-pr.sh
+
+      - name: Wait for Pantheon build
+        uses: ./
+        with:
+          pantheon-machine-token: ${{ secrets.PANTHEON_MACHINE_TOKEN }}
+          site-name: devrel-wait-for-build
+          environment: pr-${{ steps.trigger.outputs.pr_number }}
+          commit-sha: ${{ steps.trigger.outputs.commit_sha }}
+
+      - name: Close test PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr_number }}
+          DEVREL_BRANCH: ${{ steps.trigger.outputs.branch }}
+        run: ./scripts/close-test-pr.sh
