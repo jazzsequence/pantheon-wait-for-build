@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Nothing to release if v1 is already up-to-date with main
+git fetch origin v1 main
+if git diff --quiet origin/v1 origin/main; then
+  echo "v1 is already up-to-date with main — no release PR needed"
+  exit 0
+fi
+
 # Idempotent — if an open PR from main → v1 already exists, do nothing.
 # The open PR auto-tracks the main branch head, so no update is needed.
 EXISTING=$(gh pr list \
