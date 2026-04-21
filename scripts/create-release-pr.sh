@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Determine next version by bumping the patch of the latest v1.x.y tag
+git fetch --tags origin v1 main
+LATEST=$(git tag -l 'v1.*.*' | sort -V | tail -1)
+
+if [[ -z "$LATEST" ]]; then
+  NEXT="v1.0.0"
+else
+  MAJOR=$(echo "$LATEST" | cut -d. -f1)
+  MINOR=$(echo "$LATEST" | cut -d. -f2)
+  PATCH=$(echo "$LATEST" | cut -d. -f3)
+  NEXT="${MAJOR}.${MINOR}.$(( PATCH + 1 ))"
+fi
+
+echo "Next version: ${NEXT}"
+
 # Nothing to release if v1 is already up-to-date with main
-git fetch origin v1 main
 if git diff --quiet origin/v1 origin/main; then
   echo "v1 is already up-to-date with main — no release PR needed"
   exit 0
@@ -29,7 +43,7 @@ gh pr create \
   --base v1 \
   --head main \
   --draft \
-  --title "Release: merge main into v1" \
+  --title "Release ${NEXT}" \
   --body "Automated draft PR to merge \`main\` into \`v1\`.
 
 Merge this PR when you are ready to cut a release. A GitHub release will be created automatically once merged."
