@@ -1,0 +1,67 @@
+name: 'Wait for Pantheon Build'
+description: 'Polls the Pantheon API until a Next.js site build and deployment reaches a terminal state, then optionally clears the GCDN cache.'
+author: 'Chris Reynolds'
+
+branding:
+  icon: 'clock'
+  color: 'yellow'
+
+inputs:
+  pantheon-machine-token:
+    description: 'Pantheon machine token for API authentication'
+    required: true
+  site-name:
+    description: 'Pantheon site machine name (e.g. my-site)'
+    required: true
+  environment:
+    description: 'Pantheon environment (dev, test, live, or a multidev name such as pr-123). Auto-detected from GitHub context if omitted: pull_request events use pr-{number}, everything else uses dev.'
+    required: false
+    default: ''
+  timeout-minutes:
+    description: 'Maximum minutes to wait before failing'
+    required: false
+    default: '10'
+  clear-cache:
+    description: 'Clear Pantheon GCDN cache after a successful deployment'
+    required: false
+    default: 'true'
+
+outputs:
+  deployment-ready:
+    description: "'true' if the deployment completed successfully, 'false' otherwise"
+    value: ${{ steps.wait.outputs.deployment_ready }}
+
+runs:
+  using: composite
+  steps:
+    - name: Authenticate and resolve site
+      id: setup
+      shell: bash
+      env:
+        PANTHEON_MACHINE_TOKEN: ${{ inputs.pantheon-machine-token }}
+        SITE_NAME: ${{ inputs.site-name }}
+        INPUT_ENVIRONMENT: ${{ inputs.environment }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+        GITHUB_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: ${{ github.action_path }}/scripts/authenticate.sh
+
+    - name: Wait for build and deployment
+      id: wait
+      shell: bash
+      env:
+        SESSION_TOKEN: ${{ steps.setup.outputs.session_token }}
+        SITE_UUID: ${{ steps.setup.outputs.site_uuid }}
+        ENV: ${{ steps.setup.outputs.env }}
+        COMMIT_SHA: ${{ steps.setup.outputs.commit_sha }}
+        INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+      run: ${{ github.action_path }}/scripts/wait-for-build.sh
+
+    - name: Clear Pantheon GCDN cache
+      if: inputs.clear-cache == 'true' && steps.wait.outputs.deployment_ready == 'true'
+      shell: bash
+      env:
+        SESSION_TOKEN: ${{ steps.setup.outputs.session_token }}
+        SITE_UUID: ${{ steps.setup.outputs.site_uuid }}
+        ENV: ${{ steps.setup.outputs.env }}
+      run: ${{ github.action_path }}/scripts/clear-cache.sh
