@@ -49,7 +49,9 @@ runs:
         GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
         GITHUB_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         INPUT_COMMIT_SHA: ${{ inputs.commit-sha }}
-      run: ${{ github.action_path }}/scripts/authenticate.sh
+      run: |
+        # Authenticate with Pantheon
+        ${{ github.action_path }}/scripts/authenticate.sh
 
     - name: Wait for build and deployment
       id: wait
@@ -60,7 +62,9 @@ runs:
         ENV: ${{ steps.setup.outputs.env }}
         COMMIT_SHA: ${{ steps.setup.outputs.commit_sha }}
         INPUT_TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
-      run: ${{ github.action_path }}/scripts/wait-for-build.sh
+      run: |
+        # Wait for build
+        ${{ github.action_path }}/scripts/wait-for-build.sh
 
     - name: Clear Pantheon GCDN cache
       if: inputs.clear-cache == 'true' && steps.wait.outputs.deployment_ready == 'true'
@@ -69,4 +73,6 @@ runs:
         SESSION_TOKEN: ${{ steps.setup.outputs.session_token }}
         SITE_UUID: ${{ steps.setup.outputs.site_uuid }}
         ENV: ${{ steps.setup.outputs.env }}
-      run: ${{ github.action_path }}/scripts/clear-cache.sh
+      run: |
+        # Clear cache
+        ${{ github.action_path }}/scripts/clear-cache.sh
