@@ -13,7 +13,7 @@ echo "Commit      : ${COMMIT_SHA:0:7}"
 
 while [[ $attempt -lt $max_attempts ]]; do
   attempt=$(( attempt + 1 ))
-  echo "Check ${attempt} of ${max_attempts}..."
+  [[ "${RUNNER_DEBUG:-0}" == "1" ]] && echo "Check ${attempt} of ${max_attempts}..."
 
   builds_response=$(curl -s \
     -H "X-Pantheon-Session: ${SESSION_TOKEN}" \
