@@ -13,7 +13,7 @@ jobs:
     name: Create draft release PR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Create draft PR from main into v1
         env:
