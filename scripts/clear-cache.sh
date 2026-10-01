@@ -3,12 +3,12 @@ set -euo pipefail
 
 echo "Clearing Pantheon GCDN cache for ${ENV}..."
 
-# POST /v0/sites/{site_id}/environments/{env_id}/cache/clear
+# POST /v1/sites/{siteId}/environments/{environment}/cache/clear
 clear_response=$(curl -s -X POST \
-  -H "Authorization: Bearer ${SESSION_TOKEN}" \
+  -H "Authorization: Bearer ${PANTHEON_TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{"framework_cache": true}' \
-  "https://api.pantheon.io/v0/sites/${SITE_UUID}/environments/${ENV}/cache/clear")
+  -d "$(jq -n --arg s "$SITE_UUID" --arg e "$ENV" '{siteId: $s, environment: $e, frameworkCache: true}')" \
+  "https://api.pantheon.io/v1/sites/${SITE_UUID}/environments/${ENV}/cache/clear")
 
 workflow_id=$(echo "$clear_response" | jq -r '.id // empty')
 if [[ -z "$workflow_id" ]]; then
@@ -18,8 +18,8 @@ if [[ -z "$workflow_id" ]]; then
 fi
 echo "✅ Cache clear dispatched (workflow: $workflow_id)"
 
-# Poll GET /v0/sites/{site_id}/workflows/{workflow_id} until terminal result
-# result values: "succeeded", "failed", empty (queued/running)
+# Poll GET /v1/sites/{siteId}/workflows/{workflowId} until terminal status
+# status values: NOT_STARTED, IN_PROGRESS, SUCCESS, FAILED, CANCELED
 attempt=0
 max=30
 while [[ $attempt -lt $max ]]; do
@@ -27,16 +27,16 @@ while [[ $attempt -lt $max ]]; do
   sleep 5
 
   status=$(curl -s \
-    -H "Authorization: Bearer ${SESSION_TOKEN}" \
-    "https://api.pantheon.io/v0/sites/${SITE_UUID}/workflows/${workflow_id}" \
-    | jq -r '.result // empty')
+    -H "Authorization: Bearer ${PANTHEON_TOKEN}" \
+    "https://api.pantheon.io/v1/sites/${SITE_UUID}/workflows/${workflow_id}" \
+    | jq -r '.status // empty')
 
   echo "  Cache clear status: ${status:-pending}"
 
-  if [[ "$status" == "succeeded" ]]; then
+  if [[ "$status" == "SUCCESS" ]]; then
     echo "✅ Cache cleared"
     exit 0
-  elif [[ "$status" == "failed" ]]; then
+  elif [[ "$status" == "FAILED" || "$status" == "CANCELED" ]]; then
     echo "⚠️  Cache clear failed — continuing anyway"
     exit 0
   fi

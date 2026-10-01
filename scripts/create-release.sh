@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Determine next version by bumping the patch of the latest v1.x.y tag
+# Determine next version by bumping the patch of the latest v2.x.y tag
 git fetch --tags
-LATEST=$(git tag -l 'v1.*.*' | sort -V | tail -1)
+LATEST=$(git tag -l 'v2.*.*' | sort -V | tail -1)
 
 if [[ -z "$LATEST" ]]; then
-  NEXT="v1.0.0"
+  NEXT="v2.0.0"
 else
   MAJOR=$(echo "$LATEST" | cut -d. -f1)
   MINOR=$(echo "$LATEST" | cut -d. -f2)

@@ -7,9 +7,14 @@ branding:
   color: 'yellow'
 
 inputs:
+  pantheon-access-token:
+    description: 'Pantheon Personal Access Token for the Public API v1. Preferred over pantheon-machine-token when both are set.'
+    required: false
+    default: ''
   pantheon-machine-token:
-    description: 'Pantheon machine token for API authentication'
-    required: true
+    description: 'Deprecated: use pantheon-access-token. Still accepted as a fallback, but the v1 API no longer exchanges machine tokens, so the value must be a Personal Access Token.'
+    required: false
+    default: ''
   site-name:
     description: 'Pantheon site machine name (e.g. my-site)'
     required: true
@@ -38,11 +43,12 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Authenticate and resolve site
+    - name: Resolve site
       id: setup
       shell: bash
       env:
-        PANTHEON_MACHINE_TOKEN: ${{ inputs.pantheon-machine-token }}
+        PANTHEON_TOKEN: ${{ inputs.pantheon-access-token || inputs.pantheon-machine-token }}
+        LEGACY_MACHINE_TOKEN_USED: ${{ inputs.pantheon-access-token == '' && inputs.pantheon-machine-token != '' && 'true' || '' }}
         SITE_NAME: ${{ inputs.site-name }}
         INPUT_ENVIRONMENT: ${{ inputs.environment }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -50,14 +56,13 @@ runs:
         GITHUB_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         INPUT_COMMIT_SHA: ${{ inputs.commit-sha }}
       run: |
-        # Authenticate with Pantheon
-        ${{ github.action_path }}/scripts/authenticate.sh
+        ${{ github.action_path }}/scripts/resolve-site.sh
 
     - name: Wait for build and deployment
       id: wait
       shell: bash
       env:
-        SESSION_TOKEN: ${{ steps.setup.outputs.session_token }}
+        PANTHEON_TOKEN: ${{ inputs.pantheon-access-token || inputs.pantheon-machine-token }}
         SITE_UUID: ${{ steps.setup.outputs.site_uuid }}
         ENV: ${{ steps.setup.outputs.env }}
         COMMIT_SHA: ${{ steps.setup.outputs.commit_sha }}
@@ -70,7 +75,7 @@ runs:
       if: inputs.clear-cache == 'true' && steps.wait.outputs.deployment_ready == 'true'
       shell: bash
       env:
-        SESSION_TOKEN: ${{ steps.setup.outputs.session_token }}
+        PANTHEON_TOKEN: ${{ inputs.pantheon-access-token || inputs.pantheon-machine-token }}
         SITE_UUID: ${{ steps.setup.outputs.site_uuid }}
         ENV: ${{ steps.setup.outputs.env }}
       run: |

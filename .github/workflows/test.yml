@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Create test PR on devrel-wait-for-build
         id: trigger
@@ -23,7 +23,7 @@ jobs:
       - name: Wait for Pantheon build
         uses: ./
         with:
-          pantheon-machine-token: ${{ secrets.PANTHEON_MACHINE_TOKEN }}
+          pantheon-access-token: ${{ secrets.PANTHEON_ACCESS_TOKEN }}
           site-name: devrel-wait-for-build
           environment: pr-${{ steps.trigger.outputs.pr_number }}
           commit-sha: ${{ steps.trigger.outputs.commit_sha }}
