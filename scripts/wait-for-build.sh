@@ -15,9 +15,12 @@ while [[ $attempt -lt $max_attempts ]]; do
   attempt=$(( attempt + 1 ))
   [[ "${RUNNER_DEBUG:-0}" == "1" ]] && echo "Check ${attempt} of ${max_attempts}..."
 
-  builds_response=$(curl -s \
-    -H "X-Pantheon-Session: ${SESSION_TOKEN}" \
-    "https://terminus.pantheon.io/api/sites/${SITE_UUID}/environment/${ENV}/build/list?limit=10")
+  # GET /v1/sites/{siteId}/environments/{environment}/builds — newest first.
+  # `pager` is a JSON-encoded query value; pager[first]=N is rejected with a 500.
+  builds_response=$(curl -s -G \
+    -H "Authorization: Bearer ${PANTHEON_TOKEN}" \
+    --data-urlencode 'pager={"first":50}' \
+    "https://api.pantheon.io/v1/sites/${SITE_UUID}/environments/${ENV}/builds?orderBy=LAST_UPDATED&direction=DESC")
 
   if ! echo "$builds_response" | jq empty 2>/dev/null; then
     echo "⚠️  Non-JSON response from build list API — retrying..."
@@ -31,10 +34,15 @@ while [[ $attempt -lt $max_attempts ]]; do
     echo "-------------------------------------"
   fi
 
-  build=$(echo "$builds_response" | jq -c --arg sha "$COMMIT_SHA" 'first(.[] | select(.commit == $sha)) // empty')
+  build=$(echo "$builds_response" | jq -c --arg sha "$COMMIT_SHA" 'first(.edges[]?.node | select(.commitHash == $sha)) // empty')
 
   if [[ -z "$build" ]]; then
-    echo "⏳ No build yet for commit ${COMMIT_SHA:0:7}"
+    # The v1 list can transiently omit a build it returned on the previous poll, so keep polling
+    if [[ $build_found -eq 1 ]]; then
+      echo "⏳ Build not in this poll's results — retrying"
+    else
+      echo "⏳ No build yet for commit ${COMMIT_SHA:0:7}"
+    fi
     sleep "$sleep_time"
     continue
   fi
@@ -45,14 +53,16 @@ while [[ $attempt -lt $max_attempts ]]; do
   fi
 
   build_status=$(echo "$build" | jq -r '.status')
-  echo "Status: $build_status"
+  deploy_status=$(echo "$build" | jq -r '.deploy.status // empty')
+  echo "Status: $build_status${deploy_status:+ (deploy: $deploy_status)}"
 
-  if [[ "$build_status" == "DEPLOYMENT_SUCCESS" || "$build_status" == "BUILD_SUCCESS" ]]; then
+  # A successful build is only "ready" once its deployment (when reported) has succeeded too.
+  if [[ "$build_status" == "SUCCESS" && ( -z "$deploy_status" || "$deploy_status" == "SUCCESS" ) ]]; then
     echo "✅ Deployment successful"
     echo "deployment_ready=true" >> "$GITHUB_OUTPUT"
     exit 0
-  elif [[ "$build_status" == *"FAILURE"* ]]; then
-    echo "❌ Build/deployment failed (status: $build_status)"
+  elif [[ "$build_status" =~ ^(FAILURE|INTERNAL_ERROR|CANCELLED|TIMEOUT|EXPIRED)$ || "$deploy_status" =~ ^(FAILURE|INTERNAL_ERROR|CANCELLED|TIMEOUT|EXPIRED)$ ]]; then
+    echo "❌ Build/deployment failed (build: $build_status, deploy: ${deploy_status:-n/a})"
     echo "deployment_ready=false" >> "$GITHUB_OUTPUT"
     exit 1
   fi
